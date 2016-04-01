@@ -46,6 +46,8 @@
 			this.ClientSize = new System.Drawing.Size(593, 35);
 			this.Controls.Add(this.prgBar);
 			this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+			this.MaximizeBox = false;
+			this.MinimizeBox = false;
 			this.Name = "frmProgress";
 			this.UseWaitCursor = true;
 			this.ResumeLayout(false);

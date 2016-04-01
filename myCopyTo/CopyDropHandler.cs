@@ -14,6 +14,7 @@ namespace myCopyTo
 	[COMServerAssociation(AssociationType.FileExtension,".mycopy")]
 	class CopyDropHandler : SharpShell.SharpDropHandler.SharpDropHandler
 	{
+		
 		protected override void DragEnter(DragEventArgs dragEventArgs)
 		{
 			dragEventArgs.Effect = DragDropEffects.Copy;
@@ -23,48 +24,54 @@ namespace myCopyTo
 		{
 			var target = Path.GetDirectoryName(SelectedItemPath);
 			target = Path.Combine(target, Path.GetFileNameWithoutExtension(SelectedItemPath));
-			var frm = new frmProgress();
-			frm.Show();
-			frm.prgBar.Minimum = 1;
-			frm.prgBar.Maximum = DragItems.Count();
-			var c = 1;
-			// TODO: spawn a separate thread for GUI 
-			// TOOD: spawn a separate thread for actual copy
-			foreach(var source in DragItems) {
-				frm.prgBar.Value = c++;
-				frm.Text = source;
-				var a = File.GetAttributes(source);
-				if (a.HasFlag(FileAttributes.Directory)) {
-					var t = new DirectoryInfo(Path.Combine(target, Path.GetFileName(source)));					
-					CopyFilesRecursively(new DirectoryInfo(source), t);
-				} else
-					File.Copy(source, Path.Combine(target, Path.GetFileName(source)));
-			}
-			frm.Close();
+			var sources = DragItems.ToArray();
+			Task.Run(() => {
+				var frm = new frmProgress();
+				frm.Show();
+				frm.prgBar.Minimum = 1;
+				frm.prgBar.Maximum = sources.Length;
+				Task.Run(async () => {
+					var c = 1;
+					foreach (var source in sources) {
+						frm.Progress(c++, source);
+						var a = File.GetAttributes(source);
+						if (a.HasFlag(FileAttributes.Directory)) {
+							var t = new DirectoryInfo(Path.Combine(target, Path.GetFileName(source)));
+							await CopyFilesRecursively(new DirectoryInfo(source), t);
+						} else
+							File.Copy(source, Path.Combine(target, Path.GetFileName(source)));
+					}
+					frm.Close();
+				});
+			});
 		}
-		static void CopyFilesRecursively(DirectoryInfo source, DirectoryInfo target)
+		static async Task CopyFilesRecursively(DirectoryInfo source, DirectoryInfo target)
 		{
 			var od = source.LastWriteTimeUtc;
 			target.Create();
 			foreach (DirectoryInfo dir in source.GetDirectories()) {
 				try {
-					CopyFilesRecursively(dir, target.CreateSubdirectory(dir.Name));
+					await CopyFilesRecursively(dir, target.CreateSubdirectory(dir.Name));
 				} catch (Exception ex) {
-					MessageBox.Show(ex.ToString());
+					if(DialogResult.Cancel== MessageBox.Show(ex.ToString(),dir.FullName,MessageBoxButtons.OKCancel)) {
+						return;
+					}
 				}				
 			}
 			foreach (FileInfo file in source.GetFiles()) {				
 				try {
-					CopyTo(file, Path.Combine(target.FullName, file.Name));
+					await CopyTo(file, Path.Combine(target.FullName, file.Name));
 				} catch(Exception ex) {
-					MessageBox.Show(ex.ToString());
+					if (DialogResult.Cancel == MessageBox.Show(ex.ToString(), file.FullName, MessageBoxButtons.OKCancel)) {
+						return;
+					}
 				}
 			}
 			target.LastWriteTimeUtc = od;
-			source.LastAccessTimeUtc = od;
+			source.LastWriteTimeUtc = od;
 		}
 
-		private static void CopyTo(FileInfo source, string target)
+		private static async Task CopyTo(FileInfo source, string target)
 		{
 			var od = source.LastWriteTimeUtc;
 			var on = source.FullName;
@@ -72,17 +79,18 @@ namespace myCopyTo
 			source.Refresh();
 			var tot = source.Length;
 			var buflen = 8192;
-			var buf = new byte[buflen];			
-			using (var s = source.OpenRead())
+			var buf = new byte[buflen];
+			using (var s = source.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
 			using (var t = File.OpenWrite(target)) {
-				t.SetLength(tot);
+				t.SetLength(0);
 				t.Seek(0, SeekOrigin.Begin);
-				while(tot>0) {
-					var toread = (int) Math.Min(buflen, tot);
-					var r = s.Read(buf, 0, toread);
-					t.Write(buf, 0, r);
-					tot -= r;
-				}
+				await s.CopyToAsync(t);
+				//while(tot>0) {
+				//	var toread = (int) Math.Min(buflen, tot);
+				//	var r = s.Read(buf, 0, toread);
+				//	t.Write(buf, 0, r);
+				//	tot -= r;
+				//}
 			}
 			File.SetLastWriteTimeUtc(target, od);
 			source.MoveTo(on);

@@ -16,5 +16,15 @@ namespace myCopyTo
 		{
 			InitializeComponent();
 		}
+
+		public void Progress(int value, string filename)
+		{
+			prgBar.Invoke(
+				new Action(()=> {
+					prgBar.Value = value;
+					this.Text = filename;
+				})
+			);
+		}
 	}
 }
