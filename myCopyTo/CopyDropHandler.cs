@@ -11,37 +11,32 @@ using System.Windows.Forms;
 
 namespace myCopyTo
 {
-	[ComVisible(true)]
-	[COMServerAssociation(AssociationType.FileExtension, ".mycopy")]
-	class CopyDropHandler : SharpShell.SharpDropHandler.SharpDropHandler
+	class Copier
 	{
+		frmProgress _frm;
+		string[] _sources;
+		string _target;
+		byte[] buf = new byte[524288];
 
-		protected override void DragEnter(DragEventArgs dragEventArgs)
+		public Copier(string[] sources, string target)
 		{
-			dragEventArgs.Effect = DragDropEffects.Copy;
+			_sources = sources;
+			_target = target;
 		}
 
-		protected override void Drop(DragEventArgs dragEventArgs)
+		public async Task Go()
 		{
-			var target = Path.GetDirectoryName(SelectedItemPath);
-			target = Path.Combine(target, Path.GetFileNameWithoutExtension(SelectedItemPath));
-			var sources = DragItems.ToArray();
-			Go(sources, target);
-		}
-
-		static async Task Go(string[] sources, string target)
-		{
-			var frm = new frmProgress();
-			frm.ControlBox = false;
-			frm.Show();
-			frm.prgBarMain.Minimum = 0;
-			frm.prgBarMain.Maximum = sources.Length;
+			_frm = new frmProgress();
+			_frm.ControlBox = false;
+			_frm.Show();
+			_frm.prgBarMain.Minimum = 0;
+			_frm.prgBarMain.Maximum = _sources.Length;			
 			try {
-				await GoCopy(frm, sources, target).ConfigureAwait(false);
+				await GoCopy().ConfigureAwait(false);
 			} catch (Exception ex) {
 				myLog(ex.ToString());
 			} finally {
-				frm.Close();
+				_frm.Close();
 			}
 		}
 
@@ -50,40 +45,42 @@ namespace myCopyTo
 			Debugger.Log(0, "", "myCopy: " + message);
 		}
 
-		static async Task GoCopy(frmProgress frm, IEnumerable<string> sources, string target)
+		async Task GoCopy()
 		{
 			var c = 0;
-			foreach (var source in sources) {
-				myLog($"source: {source}");	
-				frm.ProgressMain(c++, source);
+			foreach (var source in _sources) {
+				_frm.StatStart();
+				myLog($"source: {source}");
+				_frm.ProgressMain(c++, source);
 				var a = File.GetAttributes(source);
 				if (a.HasFlag(FileAttributes.Directory)) {
-					var t = new DirectoryInfo(Path.Combine(target, Path.GetFileName(source)));
-					await CopyFilesRecursively(frm, new DirectoryInfo(source), t).ConfigureAwait(false);
+					var t = new DirectoryInfo(Path.Combine(_target, Path.GetFileName(source)));
+					await CopyFilesRecursively(new DirectoryInfo(source), t).ConfigureAwait(false);
 				} else {
-					var tf = Path.Combine(target, Path.GetFileName(source));
-					await CopyTo(frm, new FileInfo(source), tf).ConfigureAwait(false); ;
+					var tf = Path.Combine(_target, Path.GetFileName(source));
+					await CopyTo(new FileInfo(source), tf).ConfigureAwait(false); ;
 				}
 			}
 			myLog($"Copied: {c} objects");
 		}
-		static async Task CopyFilesRecursively(frmProgress frm, DirectoryInfo source, DirectoryInfo target)
+		async Task CopyFilesRecursively(DirectoryInfo source, DirectoryInfo target)
 		{
 			myLog($"Copy: {source.FullName}");
 			var od = source.LastWriteTimeUtc;
 			target.Create();
 			foreach (DirectoryInfo dir in source.GetDirectories()) {
 				try {
-					await CopyFilesRecursively(frm, dir, target.CreateSubdirectory(dir.Name));
+					await CopyFilesRecursively(dir, target.CreateSubdirectory(dir.Name));
 				} catch (Exception ex) {
 					if (DialogResult.Cancel == MessageBox.Show(ex.ToString(), dir.FullName, MessageBoxButtons.OKCancel)) {
 						return;
 					}
 				}
 			}
+			_frm.StatStart();
 			foreach (FileInfo file in source.GetFiles()) {
 				try {
-					await CopyTo(frm, file, Path.Combine(target.FullName, file.Name));
+					await CopyTo(file, Path.Combine(target.FullName, file.Name));
 				} catch (Exception ex) {
 					if (DialogResult.Cancel == MessageBox.Show(ex.ToString(), file.FullName, MessageBoxButtons.OKCancel)) {
 						return;
@@ -108,7 +105,7 @@ namespace myCopyTo
 					if (tried > 10)
 						done = true;
 				}
-			}				
+			}
 		}
 
 		private static async Task SetDate(string target, DateTime od)
@@ -117,7 +114,7 @@ namespace myCopyTo
 			var tried = 0;
 			while (!done) {
 				try {
-					File.SetLastWriteTimeUtc(target,od);
+					File.SetLastWriteTimeUtc(target, od);
 					done = true;
 				} catch {
 					myLog($"SetDate: {target}, tried: {tried}");
@@ -129,15 +126,13 @@ namespace myCopyTo
 			}
 		}
 
-
-		private static async Task CopyTo(frmProgress frm, FileInfo source, string target)
+		private async Task CopyTo(FileInfo source, string target)
 		{
 			myLog($"CopyTo: {source.FullName}");
-			var buf = new byte[8192];
 			var od = source.LastWriteTimeUtc;
 			var on = source.FullName;
 			var tot = source.Length;
-			frm.ProgressSubStart(tot, source.FullName, target, buf.Length);
+			_frm.ProgressSubStart(tot, source.FullName, target, buf.Length);
 			long copied = 0;
 			source.MoveTo(on + ".xxx");
 			using (var s = source.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -145,11 +140,12 @@ namespace myCopyTo
 				t.SetLength(0);
 				t.Seek(0, SeekOrigin.Begin);
 				while (tot - copied > 0) {
-					frm.ProgressSub(copied, buf.Length);
+					_frm.ProgressSub(copied, buf.Length);
 					var toread = (int)Math.Min(buf.Length, tot);
 					var r = await s.ReadAsync(buf, 0, toread);
 					await t.WriteAsync(buf, 0, r);
 					copied += r;
+					_frm.StatAddBytes(r);
 				}
 			}
 			source.MoveTo(on);
@@ -159,5 +155,26 @@ namespace myCopyTo
 			File.Move(target + ".xxx", target);
 			await SetDate(target, od);
 		}
+
 	}
+
+	[ComVisible(true)]
+	[COMServerAssociation(AssociationType.FileExtension, ".mycopy")]
+	class CopyDropHandler : SharpShell.SharpDropHandler.SharpDropHandler
+	{
+		protected override void DragEnter(DragEventArgs dragEventArgs)
+		{
+			dragEventArgs.Effect = DragDropEffects.Copy;
+		}
+
+		protected override void Drop(DragEventArgs dragEventArgs)
+		{
+			var target = Path.GetDirectoryName(SelectedItemPath);
+			target = Path.Combine(target, Path.GetFileNameWithoutExtension(SelectedItemPath));
+			var sources = DragItems.ToArray();
+
+			new Copier(sources, target).Go();
+		}
+	}
+
 }
