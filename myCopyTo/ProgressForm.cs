@@ -17,12 +17,32 @@ namespace myCopyTo
 			InitializeComponent();
 		}
 
-		public void Progress(int value, string filename)
+		public void ProgressMain(int value, string filename)
 		{
-			prgBar.Invoke(
+			Invoke(
 				new Action(()=> {
-					prgBar.Value = value;
-					this.Text = filename;
+					prgBarMain.Value = value;
+					lblSource.Text = filename;
+				})
+			);
+		}
+
+		public void ProgressSub(long value, int step)
+		{
+			Invoke(
+				new Action(() => {
+					prgBarSub.Value = (int) (value / step);
+				})
+			);
+		}
+
+		internal void ProgressSubStart(long max, string source, string target, int step)
+		{
+			Invoke(
+				new Action(() => {
+					prgBarSub.Maximum = (int)(max / step);
+					lblSource.Text = "Source: " + source;
+					lblTarget.Text = "Target: " + target;
 				})
 			);
 		}
