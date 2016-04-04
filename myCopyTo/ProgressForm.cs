@@ -14,7 +14,7 @@ namespace myCopyTo
 {
 	public partial class frmProgress : Form
 	{
-
+		public bool Canceled = false;
 		Stopwatch _timer = new Stopwatch();
 		double _total;
 
@@ -45,14 +45,33 @@ namespace myCopyTo
 			InitializeComponent();
 		}
 
-		public void ProgressMain(int value, string filename)
+		public void ProgressMain(string filename)
+		{
+			ProgressMain();
+			Invoke(
+				new Action(() => {
+					Text = "myCopy: " + filename;
+				})
+			);
+		}
+
+		internal void ProgressMain()
 		{
 			Invoke(
 				new Action(() => {
-					prgBarMain.Value = value;
-					lblSource.Text = filename;
+					prgBarMain.Value++;
 				})
 			);
+		}
+
+		internal void ProgressAddSteps(int steps)
+		{
+			Invoke(
+				new Action(() => {
+					prgBarMain.Maximum += steps;
+				})
+			);
+
 		}
 
 		public void ProgressSub(long value, int step)
@@ -83,7 +102,7 @@ namespace myCopyTo
 				unit++;
 			}
 			return string.Format("{0:0.##} {1}", fileSize, unit);
-		}
+		}		
 
 		/// <summary>
 		/// Converts a numeric value into a string that represents the number expressed as a size value in bytes,
@@ -106,6 +125,18 @@ namespace myCopyTo
 			EB,
 			ZB,
 			YB
+		}
+
+		private void btnCancel_Click(object sender, EventArgs e)
+		{
+			Canceled = true;
+		}
+
+		private void frmProgress_Load(object sender, EventArgs e)
+		{
+			ControlBox = false;
+			prgBarMain.Minimum = 0;
+			prgBarMain.Maximum = 0;
 		}
 	}
 }

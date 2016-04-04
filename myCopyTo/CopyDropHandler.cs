@@ -24,15 +24,16 @@ namespace myCopyTo
 			_target = target;
 		}
 
+		public Copier() : base()
+		{
+		}
+
 		public async Task Go()
 		{
 			_frm = new frmProgress();
-			_frm.ControlBox = false;
 			_frm.Show();
-			_frm.prgBarMain.Minimum = 0;
-			_frm.prgBarMain.Maximum = _sources.Length;			
 			try {
-				await GoCopy().ConfigureAwait(false);
+				await GoCopy();
 			} catch (Exception ex) {
 				myLog(ex.ToString());
 			} finally {
@@ -48,17 +49,20 @@ namespace myCopyTo
 		async Task GoCopy()
 		{
 			var c = 0;
+			_frm.ProgressAddSteps(_sources.Length);
 			foreach (var source in _sources) {
+				if (_frm.Canceled)
+					return;
 				_frm.StatStart();
 				myLog($"source: {source}");
-				_frm.ProgressMain(c++, source);
+				_frm.ProgressMain(source);
 				var a = File.GetAttributes(source);
 				if (a.HasFlag(FileAttributes.Directory)) {
 					var t = new DirectoryInfo(Path.Combine(_target, Path.GetFileName(source)));
-					await CopyFilesRecursively(new DirectoryInfo(source), t).ConfigureAwait(false);
+					await CopyFilesRecursively(new DirectoryInfo(source), t); 
 				} else {
 					var tf = Path.Combine(_target, Path.GetFileName(source));
-					await CopyTo(new FileInfo(source), tf).ConfigureAwait(false); ;
+					await CopyTo(new FileInfo(source), tf); 
 				}
 			}
 			myLog($"Copied: {c} objects");
@@ -68,7 +72,12 @@ namespace myCopyTo
 			myLog($"Copy: {source.FullName}");
 			var od = source.LastWriteTimeUtc;
 			target.Create();
-			foreach (DirectoryInfo dir in source.GetDirectories()) {
+			var dirs = source.GetDirectories();
+			_frm.ProgressAddSteps(dirs.Length);
+			foreach (var dir in dirs) {
+				_frm.ProgressMain();
+				if (_frm.Canceled)
+					return;
 				try {
 					await CopyFilesRecursively(dir, target.CreateSubdirectory(dir.Name));
 				} catch (Exception ex) {
@@ -78,7 +87,12 @@ namespace myCopyTo
 				}
 			}
 			_frm.StatStart();
-			foreach (FileInfo file in source.GetFiles()) {
+			var files = source.GetFiles();
+			_frm.ProgressAddSteps(files.Length);
+			foreach (var file in files) {
+				_frm.ProgressMain();
+				if (_frm.Canceled)
+					return;
 				try {
 					await CopyTo(file, Path.Combine(target.FullName, file.Name));
 				} catch (Exception ex) {
@@ -128,6 +142,9 @@ namespace myCopyTo
 
 		private async Task CopyTo(FileInfo source, string target)
 		{
+			if (_frm.Canceled)
+				return;
+
 			myLog($"CopyTo: {source.FullName}");
 			var od = source.LastWriteTimeUtc;
 			var on = source.FullName;
@@ -139,7 +156,7 @@ namespace myCopyTo
 			using (var t = File.OpenWrite(target + ".xxx")) {
 				t.SetLength(0);
 				t.Seek(0, SeekOrigin.Begin);
-				while (tot - copied > 0) {
+				while (tot - copied > 0 && !_frm.Canceled) {
 					_frm.ProgressSub(copied, buf.Length);
 					var toread = (int)Math.Min(buf.Length, tot);
 					var r = await s.ReadAsync(buf, 0, toread);
@@ -148,12 +165,16 @@ namespace myCopyTo
 					_frm.StatAddBytes(r);
 				}
 			}
+
 			source.MoveTo(on);
 			if (File.Exists(target))
 				File.Delete(target);
 
 			File.Move(target + ".xxx", target);
-			await SetDate(target, od);
+			if (_frm.Canceled)
+				File.Delete(target);
+			else 
+				await SetDate(target, od);
 		}
 
 	}

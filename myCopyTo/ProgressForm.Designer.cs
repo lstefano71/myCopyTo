@@ -32,6 +32,7 @@
 			this.lblSource = new System.Windows.Forms.Label();
 			this.lblTarget = new System.Windows.Forms.Label();
 			this.lblStat = new System.Windows.Forms.Label();
+			this.btnCancel = new System.Windows.Forms.Button();
 			this.SuspendLayout();
 			// 
 			// prgBarMain
@@ -86,11 +87,22 @@
 			this.lblStat.TabIndex = 4;
 			this.lblStat.Text = "0/0";
 			// 
+			// btnCancel
+			// 
+			this.btnCancel.Location = new System.Drawing.Point(505, 91);
+			this.btnCancel.Name = "btnCancel";
+			this.btnCancel.Size = new System.Drawing.Size(75, 23);
+			this.btnCancel.TabIndex = 5;
+			this.btnCancel.Text = "Cancel";
+			this.btnCancel.UseVisualStyleBackColor = true;
+			this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
+			// 
 			// frmProgress
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(593, 181);
+			this.Controls.Add(this.btnCancel);
 			this.Controls.Add(this.lblStat);
 			this.Controls.Add(this.lblTarget);
 			this.Controls.Add(this.lblSource);
@@ -102,6 +114,7 @@
 			this.Name = "frmProgress";
 			this.Text = "myCopy";
 			this.UseWaitCursor = true;
+			this.Load += new System.EventHandler(this.frmProgress_Load);
 			this.ResumeLayout(false);
 			this.PerformLayout();
 
@@ -114,6 +127,7 @@
 		private System.Windows.Forms.Label lblSource;
 		private System.Windows.Forms.Label lblTarget;
 		private System.Windows.Forms.Label lblStat;
+		private System.Windows.Forms.Button btnCancel;
 	}
 }
 
