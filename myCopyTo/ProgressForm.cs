@@ -25,10 +25,10 @@ namespace myCopyTo
 		}
 		public void StatAddBytes(long bytes)
 		{
-			_total += bytes;
-			var s = GetSpeed();
 			Invoke(
 				new Action(() => {
+					_total += bytes;
+					var s = GetSpeed();
 					lblStat.Text = $"{FormatByteSize(s)}/s";
 				})
 			);
@@ -137,6 +137,7 @@ namespace myCopyTo
 			ControlBox = false;
 			prgBarMain.Minimum = 0;
 			prgBarMain.Maximum = 0;
+			lblStat.Text = "";
 		}
 	}
 }

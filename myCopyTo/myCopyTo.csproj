@@ -71,6 +71,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Copier.cs" />
     <Compile Include="CopyDropHandler.cs" />
     <Compile Include="ProgressForm.cs">
       <SubType>Form</SubType>
