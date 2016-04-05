@@ -7,6 +7,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -17,6 +18,15 @@ namespace myCopyTo
 		public bool Canceled = false;
 		Stopwatch _timer = new Stopwatch();
 		double _total;
+		private ManualResetEvent _ready;
+
+		void Execute(Action fn)
+		{
+			if (InvokeRequired) {
+				Invoke(fn);
+			} else
+				fn();
+		}
 
 		public void StatStart()
 		{
@@ -25,13 +35,11 @@ namespace myCopyTo
 		}
 		public void StatAddBytes(long bytes)
 		{
-			Invoke(
-				new Action(() => {
-					_total += bytes;
-					var s = GetSpeed();
-					lblStat.Text = $"{FormatByteSize(s)}/s";
-				})
-			);
+			Execute(() => {
+				_total += bytes;
+				var s = GetSpeed();
+				lblStat.Text = $"{FormatByteSize(s)}/s";
+			});
 		}
 
 		public double GetSpeed()
@@ -40,58 +48,54 @@ namespace myCopyTo
 			return _total / _timer.Elapsed.TotalSeconds;
 		}
 
-		public frmProgress()
+		public frmProgress(ManualResetEvent ready)
 		{
 			InitializeComponent();
+			_ready = ready;
 		}
 
 		public void ProgressMain(string filename)
 		{
 			ProgressMain();
-			Invoke(
-				new Action(() => {
+			Execute(() => {
 					Text = "myCopy: " + filename;
-				})
-			);
+				});
 		}
 
 		internal void ProgressMain()
 		{
-			Invoke(
-				new Action(() => {
+			Execute(() => {
 					prgBarMain.Value++;
-				})
-			);
+				});
+		}
+
+		internal void Done()
+		{
+			Execute(() => Close());
 		}
 
 		internal void ProgressAddSteps(int steps)
 		{
-			Invoke(
-				new Action(() => {
+			Execute(() => {
 					prgBarMain.Maximum += steps;
-				})
-			);
+				});
 
 		}
 
 		public void ProgressSub(long value, int step)
 		{
-			Invoke(
-				new Action(() => {
+			Execute(() => {
 					prgBarSub.Value = (int)(value / step);
-				})
-			);
+				});
 		}
 
 		internal void ProgressSubStart(long max, string source, string target, int step)
 		{
-			Invoke(
-				new Action(() => {
+			Execute(() => {
 					prgBarSub.Maximum = (int)(max / step);
 					lblSource.Text = "Source: " + source;
 					lblTarget.Text = "Target: " + target;
-				})
-			);
+				});
 		}
 
 		public static string FormatByteSize(double fileSize)
@@ -138,6 +142,7 @@ namespace myCopyTo
 			prgBarMain.Minimum = 0;
 			prgBarMain.Maximum = 0;
 			lblStat.Text = "";
+			_ready.Set();
 		}
 	}
 }

@@ -22,8 +22,7 @@ namespace myCopyTo
 			var sources = args;
 
 			var copy = new Copier(sources, target);
-
-			Application.Run(new frmProgress());
+			Task.Run(copy.Go).Wait();
 		}
 	}
 }

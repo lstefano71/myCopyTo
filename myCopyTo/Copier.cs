@@ -25,14 +25,19 @@ namespace myCopyTo
 
 		public async Task Go()
 		{
-			_frm = new frmProgress();
-			_frm.Show();
+			var ready = new System.Threading.ManualResetEvent(false);
+			Task.Run(() => {
+				_frm = new frmProgress(ready);
+				Application.Run(_frm);
+			});
+
+			ready.WaitOne();
 			try {
 				await GoCopy();
 			} catch (Exception ex) {
 				myLog(ex.ToString());
 			} finally {
-				_frm.Close();
+				_frm.Done();
 			}
 		}
 
